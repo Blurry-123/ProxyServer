@@ -6,10 +6,13 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#include "cache.h"
+#include "access_control.h"
+
 #define PROXY_PORT 8888
 #define BUFFER_SIZE 8192
 
-// Get the hostname from the Host header
+/* Get hostname from the Host header */
 int get_host(char *request, char *host)
 {
     char *start;
@@ -22,7 +25,6 @@ int get_host(char *request, char *host)
 
     start += 5;
 
-    // Skip spaces
     while (*start == ' ')
         start++;
 
@@ -39,7 +41,7 @@ int get_host(char *request, char *host)
     strncpy(host, start, length);
     host[length] = '\0';
 
-    // Remove port if Host is like example.com:80
+    /* Remove port if Host is like example.com:80 */
     char *colon = strchr(host, ':');
 
     if (colon != NULL)
@@ -48,13 +50,36 @@ int get_host(char *request, char *host)
     return 1;
 }
 
-// Handle one client
+
+/* Send all data to client */
+int send_all(int socket_fd, const char *data, int size)
+{
+    int total_sent = 0;
+
+    while (total_sent < size)
+    {
+        int sent = send(socket_fd,
+                        data + total_sent,
+                        size - total_sent,
+                        0);
+
+        if (sent <= 0)
+            return 0;
+
+        total_sent += sent;
+    }
+
+    return 1;
+}
+
+
+/* Handle one client */
 void handle_client(int client_socket)
 {
     char buffer[BUFFER_SIZE];
     char host[256];
 
-    // Receive HTTP request from browser/client
+    /* Receive HTTP request */
     int bytes_received = recv(client_socket,
                               buffer,
                               BUFFER_SIZE - 1,
@@ -71,38 +96,140 @@ void handle_client(int client_socket)
     printf("\n----- HTTP REQUEST -----\n");
     printf("%s\n", buffer);
 
-    // Find the Host header
+
+    /* Get hostname */
     if (!get_host(buffer, host))
     {
         printf("Could not find Host header\n");
+
         close(client_socket);
         return;
     }
 
     printf("Requested host: %s\n", host);
 
-    // Create socket for destination server
+
+    /* =====================================================
+       ACCESS CONTROL
+       ===================================================== */
+
+    if (is_blocked(host))
+    {
+        const char *blocked_message =
+            "HTTP/1.1 403 Forbidden\r\n"
+            "Content-Type: text/html\r\n"
+            "Content-Length: 45\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "<html><body>Access Denied</body></html>";
+
+        send_all(client_socket,
+                 blocked_message,
+                 strlen(blocked_message));
+
+        printf("ACCESS CONTROL: Request blocked\n");
+
+        close(client_socket);
+        return;
+    }
+
+
+    /* =====================================================
+       CACHE CHECK
+       ===================================================== */
+
+    /*
+       Use the complete HTTP request as the cache key.
+       This means:
+       
+       GET /page1...
+       
+       and
+       
+       GET /page2...
+       
+       are treated as different requests.
+    */
+
+    char cache_key[BUFFER_SIZE];
+
+    strncpy(cache_key,
+            buffer,
+            sizeof(cache_key) - 1);
+
+    cache_key[sizeof(cache_key) - 1] = '\0';
+
+
+    /*
+       Allocate cached response dynamically instead of
+       putting a 1 MB array on the stack.
+    */
+
+    char *cached_response = malloc(MAX_CACHE_SIZE);
+
+    if (cached_response == NULL)
+    {
+        printf("Could not allocate cache buffer\n");
+
+        close(client_socket);
+        return;
+    }
+
+    int cached_size = 0;
+
+
+    if (check_cache(cache_key,
+                    cached_response,
+                    &cached_size))
+    {
+        printf("CACHE HIT\n");
+        printf("Sending cached response to client\n");
+
+        send_all(client_socket,
+                 cached_response,
+                 cached_size);
+
+        free(cached_response);
+
+        close(client_socket);
+        return;
+    }
+
+    printf("CACHE MISS\n");
+
+    free(cached_response);
+
+
+    /* =====================================================
+       CREATE DESTINATION SOCKET
+       ===================================================== */
+
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
 
     if (server_socket < 0)
     {
         perror("Destination socket creation failed");
+
         close(client_socket);
         return;
     }
 
-    // Find IP address of destination server
+
+    /* Find IP address */
     struct hostent *server = gethostbyname(host);
 
     if (server == NULL)
     {
         printf("Could not find server: %s\n", host);
+
         close(server_socket);
         close(client_socket);
+
         return;
     }
 
-    // Prepare destination address
+
+    /* Prepare destination address */
     struct sockaddr_in server_address;
 
     memset(&server_address, 0, sizeof(server_address));
@@ -114,35 +241,63 @@ void handle_client(int client_socket)
            server->h_addr,
            server->h_length);
 
-    // Connect proxy to destination server
+
+    /* Connect to destination server */
     if (connect(server_socket,
                 (struct sockaddr *)&server_address,
                 sizeof(server_address)) < 0)
     {
         perror("Connection to destination server failed");
+
         close(server_socket);
         close(client_socket);
+
         return;
     }
 
     printf("Connected to %s\n", host);
 
-    // Send client's request to destination server
-    if (send(server_socket,
-             buffer,
-             bytes_received,
-             0) < 0)
+
+    /* =====================================================
+       FORWARD REQUEST
+       ===================================================== */
+
+    if (!send_all(server_socket,
+                  buffer,
+                  bytes_received))
     {
         perror("Failed to send request");
+
         close(server_socket);
         close(client_socket);
+
         return;
     }
 
     printf("Request forwarded to server\n");
 
-    // Receive response from destination server
-    // and send it back to client
+
+    /* =====================================================
+       RECEIVE COMPLETE RESPONSE
+       ===================================================== */
+
+    int response_capacity = BUFFER_SIZE;
+    int total_response_size = 0;
+
+    char *complete_response =
+        malloc(response_capacity);
+
+    if (complete_response == NULL)
+    {
+        printf("Memory allocation failed\n");
+
+        close(server_socket);
+        close(client_socket);
+
+        return;
+    }
+
+
     while (1)
     {
         int response_size = recv(server_socket,
@@ -153,28 +308,89 @@ void handle_client(int client_socket)
         if (response_size <= 0)
             break;
 
-        int total_sent = 0;
 
-        while (total_sent < response_size)
+        /* Increase memory if necessary */
+        while (total_response_size + response_size >
+               response_capacity)
         {
-            int sent = send(client_socket,
-                            buffer + total_sent,
-                            response_size - total_sent,
-                            0);
+            response_capacity *= 2;
 
-            if (sent <= 0)
-                break;
+            char *new_response =
+                realloc(complete_response,
+                        response_capacity);
 
-            total_sent += sent;
+            if (new_response == NULL)
+            {
+                printf("Memory allocation failed\n");
+
+                free(complete_response);
+
+                close(server_socket);
+                close(client_socket);
+
+                return;
+            }
+
+            complete_response = new_response;
         }
+
+
+        /* Add new data to complete response */
+        memcpy(complete_response + total_response_size,
+               buffer,
+               response_size);
+
+        total_response_size += response_size;
     }
 
-    printf("Response sent back to client\n");
 
-    // Close both connections
+    printf("Received %d bytes from server\n",
+           total_response_size);
+
+
+    /* =====================================================
+       SEND RESPONSE TO CLIENT
+       ===================================================== */
+
+    if (!send_all(client_socket,
+                  complete_response,
+                  total_response_size))
+    {
+        printf("Failed to send complete response\n");
+    }
+    else
+    {
+        printf("Response sent back to client\n");
+    }
+
+
+    /* =====================================================
+       SAVE RESPONSE IN CACHE
+       ===================================================== */
+
+    if (total_response_size <= MAX_CACHE_SIZE)
+    {
+        save_cache(cache_key,
+                   complete_response,
+                   total_response_size);
+
+        printf("Response saved in cache\n");
+    }
+    else
+    {
+        printf("Response too large. Not cached.\n");
+    }
+
+
+    /* Free memory */
+    free(complete_response);
+
+
+    /* Close connections */
     close(server_socket);
     close(client_socket);
 }
+
 
 int main()
 {
@@ -184,10 +400,16 @@ int main()
     struct sockaddr_in proxy_address;
     struct sockaddr_in client_address;
 
-    socklen_t client_length = sizeof(client_address);
+    socklen_t client_length =
+        sizeof(client_address);
 
-    // 1. Create proxy socket
-    proxy_socket = socket(AF_INET, SOCK_STREAM, 0);
+
+    /* =====================================================
+       CREATE PROXY SOCKET
+       ===================================================== */
+
+    proxy_socket =
+        socket(AF_INET, SOCK_STREAM, 0);
 
     if (proxy_socket < 0)
     {
@@ -197,7 +419,8 @@ int main()
 
     printf("Proxy socket created successfully\n");
 
-    // Allow reuse of port
+
+    /* Allow reuse of port */
     int option = 1;
 
     setsockopt(proxy_socket,
@@ -206,29 +429,50 @@ int main()
                &option,
                sizeof(option));
 
-    // 2. Configure proxy address
-    memset(&proxy_address, 0, sizeof(proxy_address));
+
+    /* =====================================================
+       CONFIGURE PROXY ADDRESS
+       ===================================================== */
+
+    memset(&proxy_address,
+           0,
+           sizeof(proxy_address));
 
     proxy_address.sin_family = AF_INET;
-    proxy_address.sin_addr.s_addr = INADDR_ANY;
-    proxy_address.sin_port = htons(PROXY_PORT);
 
-    // 3. Bind socket to port 8888
+    proxy_address.sin_addr.s_addr =
+        INADDR_ANY;
+
+    proxy_address.sin_port =
+        htons(PROXY_PORT);
+
+
+    /* =====================================================
+       BIND
+       ===================================================== */
+
     if (bind(proxy_socket,
              (struct sockaddr *)&proxy_address,
              sizeof(proxy_address)) < 0)
     {
         perror("Bind failed");
+
         close(proxy_socket);
         return 1;
     }
 
-    printf("Proxy bound to port %d\n", PROXY_PORT);
+    printf("Proxy bound to port %d\n",
+           PROXY_PORT);
 
-    // 4. Listen for clients
+
+    /* =====================================================
+       LISTEN
+       ===================================================== */
+
     if (listen(proxy_socket, 5) < 0)
     {
         perror("Listen failed");
+
         close(proxy_socket);
         return 1;
     }
@@ -236,12 +480,20 @@ int main()
     printf("Proxy server is listening...\n");
     printf("Waiting for HTTP clients...\n");
 
-    // 5. Accept clients continuously
+
+    /* =====================================================
+       ACCEPT CLIENTS
+       ===================================================== */
+
     while (1)
     {
-        client_socket = accept(proxy_socket,
-                                (struct sockaddr *)&client_address,
-                                &client_length);
+        client_length =
+            sizeof(client_address);
+
+        client_socket =
+            accept(proxy_socket,
+                   (struct sockaddr *)&client_address,
+                   &client_length);
 
         if (client_socket < 0)
         {
@@ -251,9 +503,11 @@ int main()
 
         printf("\nClient connected!\n");
 
-        // Handle client
+
+        /* Handle client */
         handle_client(client_socket);
     }
+
 
     close(proxy_socket);
 
