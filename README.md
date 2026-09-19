@@ -4,8 +4,11 @@
 
 ### Group Members
 1)Shreya Acharya(24156096)
+
 2)Saswati Tripathy(24156092)
+
 3)Alipriya Mandal(24156040)
+
 
 ## WHY WE CHOSE THIS PROJECT
 We have chosen the Proxy Server project because it provides a practical way to learn and understand important HTTP communication, client-server communication, concurrent connections, caching, access control and network performance. We found this project suitable for our group because the work can be divided among three members. This will allow each member to work on a specific part while also understanding how a proxy server works.
