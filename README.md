@@ -1,13 +1,16 @@
-#COMPUTER NETWORK PROJECT
-##Selected Project: Proxy Server
-###Group Members
+# COMPUTER NETWORK PROJECT
+
+## Selected Project: Proxy Server
+
+### Group Members
 1)Shreya Acharya(24156096)
 2)Saswati Tripathy(24156092)
 3)Alipriya Mandal(24156040)
-##WHY WE CHOSE THIS PROJECT
+
+## WHY WE CHOSE THIS PROJECT
 We have chosen the Proxy Server project because it provides a practical way to learn and understand important HTTP communication, client-server communication, concurrent connections, caching, access control and network performance. We found this project suitable for our group because the work can be divided among three members. This will allow each member to work on a specific part while also understanding how a proxy server works.
 
-###Planned Features of the Final Project
+### Planned Features of the Final Project
 
 Our final Proxy Server will include the following features:
 
@@ -25,7 +28,7 @@ The final project will follow the basic flow:
 
 Client → Proxy Server → Destination Server → Proxy Server → Client
 
-###Group Work Distribution
+### Group Work Distribution
 
 Member 1 – HTTP and Networking
 
@@ -54,7 +57,7 @@ Member 3 – Concurrency, Logging and Performance
 - Performance measurement
 - Concurrency testing
 
-###AI Usage Declaration
+### AI Usage Declaration
 
 We plan to use AI as a learning and development assistance tool during this project.
 
