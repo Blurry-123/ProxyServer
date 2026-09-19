@@ -18,9 +18,6 @@ struct CacheEntry
 };
 
 struct CacheEntry cache[MAX_CACHE_ENTRIES];
-
-
-/* Check whether requested data is already in cache */
 int check_cache(const char *key, char *response, int *response_size)
 {
     int i;
@@ -43,8 +40,6 @@ int check_cache(const char *key, char *response, int *response_size)
 
                 continue;
             }
-
-            /* Check if requested key matches */
             if (strcmp(cache[i].key, key) == 0)
             {
                 memcpy(response,
@@ -64,24 +59,17 @@ int check_cache(const char *key, char *response, int *response_size)
 
     return 0;
 }
-
-
-/* Save a server response in cache */
 void save_cache(const char *key,
                 const char *response,
                 int response_size)
 {
     int i;
     int position = -1;
-
-    /* Do not cache very large responses */
     if (response_size > MAX_CACHE_SIZE)
     {
         printf("Response too large. Not cached.\n");
         return;
     }
-
-    /* Find an empty cache position */
     for (i = 0; i < MAX_CACHE_ENTRIES; i++)
     {
         if (cache[i].valid == 0)
@@ -90,8 +78,6 @@ void save_cache(const char *key,
             break;
         }
     }
-
-    /* If cache is full, replace the oldest entry */
     if (position == -1)
     {
         position = 0;
@@ -108,15 +94,11 @@ void save_cache(const char *key,
 
         free(cache[position].response);
     }
-
-    /* Store cache key */
     strncpy(cache[position].key,
             key,
             sizeof(cache[position].key) - 1);
 
     cache[position].key[sizeof(cache[position].key) - 1] = '\0';
-
-    /* Allocate memory for response */
     cache[position].response = malloc(response_size);
 
     if (cache[position].response == NULL)
@@ -124,8 +106,6 @@ void save_cache(const char *key,
         printf("Memory allocation failed. Response not cached.\n");
         return;
     }
-
-    /* Copy response */
     memcpy(cache[position].response,
            response,
            response_size);
@@ -138,9 +118,6 @@ void save_cache(const char *key,
 
     printf("Response saved in cache: %s\n", key);
 }
-
-
-/* Clear entire cache */
 void clear_cache()
 {
     int i;
