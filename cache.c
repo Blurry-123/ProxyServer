@@ -27,8 +27,6 @@ int check_cache(const char *key, char *response, int *response_size)
         if (cache[i].valid == 1)
         {
             time_t current_time = time(NULL);
-
-            /* Check if cache entry has expired */
             if (current_time - cache[i].saved_time > CACHE_TIME)
             {
                 printf("Cache expired: %s\n", cache[i].key);
