@@ -2,9 +2,6 @@
 #include <string.h>
 
 #include "access_control.h"
-
-
-/* List of websites that the proxy will block */
 const char *blocked_domains[] =
 {
     "facebook.com",
@@ -14,9 +11,6 @@ const char *blocked_domains[] =
 
 
 #define BLOCKED_COUNT 3
-
-
-/* Check whether a host is blocked */
 int is_blocked(const char *host)
 {
     int i;
