@@ -1,0 +1,506 @@
+[Sat Sep 26 13:56:27 2026
+] New client connected
+[Sat Sep 26 13:56:27 2026
+] Client thread started
+[Sat Sep 26 13:56:27 2026
+] HTTP request received for host: example.com
+[Sat Sep 26 13:56:27 2026
+] Request blocked by access control
+[Sat Sep 26 13:56:27 2026
+] Request processing time: 0.001 seconds
+[Sat Sep 26 13:56:27 2026
+] Client thread finished
+[Sat Sep 26 13:58:16 2026
+] New client connected
+[Sat Sep 26 13:58:16 2026
+] Client thread started
+[Sat Sep 26 13:58:16 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 13:58:16 2026
+] Cache miss
+[Sat Sep 26 14:00:25 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:00:25 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:00:25 2026
+] Client thread finished
+[Sat Sep 26 14:06:28 2026
+] New client connected
+[Sat Sep 26 14:06:28 2026
+] Client thread started
+[Sat Sep 26 14:06:28 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:06:28 2026
+] Cache miss
+[Sat Sep 26 14:06:28 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:06:28 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:06:28 2026
+] Client thread finished
+[Sat Sep 26 14:06:28 2026
+] New client connected
+[Sat Sep 26 14:06:28 2026
+] Client thread started
+[Sat Sep 26 14:06:28 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:06:28 2026
+] Cache miss
+[Sat Sep 26 14:06:28 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:06:28 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:06:28 2026
+] Client thread finished
+[Sat Sep 26 14:06:28 2026
+] New client connected
+[Sat Sep 26 14:06:28 2026
+] Client thread started
+[Sat Sep 26 14:06:28 2026
+] New client connected
+[Sat Sep 26 14:06:28 2026
+] Client thread started
+[Sat Sep 26 14:06:30 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:06:30 2026
+] Cache miss
+[Sat Sep 26 14:06:30 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:06:30 2026
+] Request processing time: 0.003 seconds
+[Sat Sep 26 14:06:30 2026
+] Client thread finished
+[Sat Sep 26 14:06:30 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:06:30 2026
+] Cache miss
+[Sat Sep 26 14:06:30 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:06:30 2026
+] Request processing time: 0.003 seconds
+[Sat Sep 26 14:06:30 2026
+] Client thread finished
+[Sat Sep 26 14:06:30 2026
+] New client connected
+[Sat Sep 26 14:06:30 2026
+] Client thread started
+[Sat Sep 26 14:06:30 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:06:30 2026
+] Cache miss
+[Sat Sep 26 14:06:30 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:06:30 2026
+] Request processing time: 0.001 seconds
+[Sat Sep 26 14:06:30 2026
+] Client thread finished
+[Sat Sep 26 14:06:33 2026
+] New client connected
+[Sat Sep 26 14:06:33 2026
+] Client thread started
+[Sat Sep 26 14:06:33 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:06:33 2026
+] Cache miss
+[Sat Sep 26 14:06:33 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:06:33 2026
+] Request processing time: 0.001 seconds
+[Sat Sep 26 14:06:33 2026
+] Client thread finished
+[Sat Sep 26 14:06:33 2026
+] New client connected
+[Sat Sep 26 14:06:33 2026
+] Client thread started
+[Sat Sep 26 14:06:33 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:06:33 2026
+] Cache miss
+[Sat Sep 26 14:06:33 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:06:33 2026
+] Request processing time: 0.001 seconds
+[Sat Sep 26 14:06:33 2026
+] Client thread finished
+[Sat Sep 26 14:06:33 2026
+] New client connected
+[Sat Sep 26 14:06:33 2026
+] Client thread started
+[Sat Sep 26 14:06:57 2026
+] New client connected
+[Sat Sep 26 14:06:57 2026
+] Client thread started
+[Sat Sep 26 14:06:57 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:06:57 2026
+] Cache miss
+[Sat Sep 26 14:07:43 2026
+] ERROR: Failed to receive request from client
+[Sat Sep 26 14:07:43 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:07:43 2026
+] Client thread finished
+[Sat Sep 26 14:08:57 2026
+] New client connected
+[Sat Sep 26 14:08:57 2026
+] Client thread started
+[Sat Sep 26 14:08:57 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:08:57 2026
+] Cache miss
+[Sat Sep 26 14:09:00 2026
+] Connected to destination server
+[Sat Sep 26 14:09:00 2026
+] Request forwarded to destination server
+[Sat Sep 26 14:09:05 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:09:05 2026
+] Request processing time: 0.005 seconds
+[Sat Sep 26 14:09:05 2026
+] Client thread finished
+[Sat Sep 26 14:09:07 2026
+] Response sent back to client
+[Sat Sep 26 14:09:07 2026
+] Response saved in cache
+[Sat Sep 26 14:09:07 2026
+] Request processing time: 0.003 seconds
+[Sat Sep 26 14:09:07 2026
+] Client thread finished
+[Sat Sep 26 14:10:00 2026
+] New client connected
+[Sat Sep 26 14:10:00 2026
+] Client thread started
+[Sat Sep 26 14:10:00 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:10:00 2026
+] Cache hit
+[Sat Sep 26 14:10:00 2026
+] Request processing time: 0.001 seconds
+[Sat Sep 26 14:10:00 2026
+] Client thread finished
+[Sat Sep 26 14:10:48 2026
+] New client connected
+[Sat Sep 26 14:10:48 2026
+] Client thread started
+[Sat Sep 26 14:10:48 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:10:48 2026
+] Cache miss
+[Sat Sep 26 14:10:48 2026
+] New client connected
+[Sat Sep 26 14:10:48 2026
+] Client thread started
+[Sat Sep 26 14:10:48 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:10:48 2026
+] Cache miss
+[Sat Sep 26 14:10:48 2026
+] New client connected
+[Sat Sep 26 14:10:48 2026
+] New client connected
+[Sat Sep 26 14:10:48 2026
+] Client thread started
+[Sat Sep 26 14:10:48 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:10:48 2026
+] Cache miss
+[Sat Sep 26 14:10:48 2026
+] New client connected
+[Sat Sep 26 14:10:48 2026
+] Client thread started
+[Sat Sep 26 14:10:48 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:10:48 2026
+] Cache miss
+[Sat Sep 26 14:10:48 2026
+] Client thread started
+[Sat Sep 26 14:10:48 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:10:48 2026
+] Cache miss
+[Sat Sep 26 14:10:52 2026
+] Connected to destination server
+[Sat Sep 26 14:10:52 2026
+] Request forwarded to destination server
+[Sat Sep 26 14:10:57 2026
+] Connected to destination server
+[Sat Sep 26 14:10:57 2026
+] Request forwarded to destination server
+[Sat Sep 26 14:10:58 2026
+] Response sent back to client
+[Sat Sep 26 14:10:58 2026
+] Response saved in cache
+[Sat Sep 26 14:10:58 2026
+] Request processing time: 0.009 seconds
+[Sat Sep 26 14:10:58 2026
+] Client thread finished
+[Sat Sep 26 14:11:03 2026
+] Response sent back to client
+[Sat Sep 26 14:11:03 2026
+] Response saved in cache
+[Sat Sep 26 14:11:03 2026
+] Request processing time: 0.011 seconds
+[Sat Sep 26 14:11:03 2026
+] Client thread finished
+[Sat Sep 26 14:11:09 2026
+] Connected to destination server
+[Sat Sep 26 14:11:09 2026
+] Request forwarded to destination server
+[Sat Sep 26 14:11:15 2026
+] Response sent back to client
+[Sat Sep 26 14:11:15 2026
+] Response saved in cache
+[Sat Sep 26 14:11:15 2026
+] Request processing time: 0.011 seconds
+[Sat Sep 26 14:11:15 2026
+] Client thread finished
+[Sat Sep 26 14:11:59 2026
+] New client connected
+[Sat Sep 26 14:11:59 2026
+] Client thread started
+[Sat Sep 26 14:11:59 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:11:59 2026
+] Cache miss
+[Sat Sep 26 14:11:59 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:11:59 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:11:59 2026
+] Client thread finished
+[Sat Sep 26 14:11:59 2026
+] New client connected
+[Sat Sep 26 14:11:59 2026
+] Client thread started
+[Sat Sep 26 14:11:59 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:11:59 2026
+] Cache miss
+[Sat Sep 26 14:11:59 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:11:59 2026
+] Request processing time: 0.001 seconds
+[Sat Sep 26 14:11:59 2026
+] Client thread finished
+[Sat Sep 26 14:12:56 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:12:56 2026
+] Request processing time: 0.018 seconds
+[Sat Sep 26 14:12:56 2026
+] Client thread finished
+[Sat Sep 26 14:12:58 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:12:58 2026
+] Request processing time: 0.014 seconds
+[Sat Sep 26 14:12:58 2026
+] Client thread finished
+[Sat Sep 26 14:18:10 2026
+] New client connected
+[Sat Sep 26 14:18:10 2026
+] Client thread started
+[Sat Sep 26 14:18:10 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:18:10 2026
+] Cache miss
+[Sat Sep 26 14:18:10 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:18:10 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:18:10 2026
+] Client thread finished
+[Sat Sep 26 14:18:10 2026
+] New client connected
+[Sat Sep 26 14:18:10 2026
+] Client thread started
+[Sat Sep 26 14:18:10 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:18:10 2026
+] Cache miss
+[Sat Sep 26 14:18:10 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:18:10 2026
+] Request processing time: 0.001 seconds
+[Sat Sep 26 14:18:10 2026
+] Client thread finished
+[Sat Sep 26 14:18:10 2026
+] New client connected
+[Sat Sep 26 14:18:10 2026
+] Client thread started
+[Sat Sep 26 14:18:10 2026
+] New client connected
+[Sat Sep 26 14:18:10 2026
+] Client thread started
+[Sat Sep 26 14:18:11 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:18:11 2026
+] Cache miss
+[Sat Sep 26 14:18:11 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:18:11 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:18:11 2026
+] Client thread finished
+[Sat Sep 26 14:18:11 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:18:11 2026
+] Cache miss
+[Sat Sep 26 14:18:11 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:18:11 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:18:11 2026
+] Client thread finished
+[Sat Sep 26 14:18:11 2026
+] New client connected
+[Sat Sep 26 14:18:11 2026
+] Client thread started
+[Sat Sep 26 14:18:11 2026
+] HTTP request received for host: localhost
+[Sat Sep 26 14:18:11 2026
+] Cache miss
+[Sat Sep 26 14:18:11 2026
+] ERROR: Connection to destination server failed
+[Sat Sep 26 14:18:11 2026
+] Request processing time: 0.003 seconds
+[Sat Sep 26 14:18:11 2026
+] Client thread finished
+[Sat Sep 26 14:18:40 2026
+] New client connected
+[Sat Sep 26 14:18:40 2026
+] Client thread started
+[Sat Sep 26 14:18:40 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:18:40 2026
+] Cache miss
+[Sat Sep 26 14:20:09 2026
+] New client connected
+[Sat Sep 26 14:20:09 2026
+] Client thread started
+[Sat Sep 26 14:20:09 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:20:09 2026
+] Cache miss
+[Sat Sep 26 14:20:22 2026
+] Connected to destination server
+[Sat Sep 26 14:20:22 2026
+] Request forwarded to destination server
+[Sat Sep 26 14:20:23 2026
+] Response sent back to client
+[Sat Sep 26 14:20:23 2026
+] Response saved in cache
+[Sat Sep 26 14:20:23 2026
+] Request processing time: 0.004 seconds
+[Sat Sep 26 14:20:23 2026
+] Client thread finished
+[Sat Sep 26 14:20:30 2026
+] New client connected
+[Sat Sep 26 14:20:30 2026
+] Client thread started
+[Sat Sep 26 14:20:30 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:20:30 2026
+] Cache hit
+[Sat Sep 26 14:20:30 2026
+] Request processing time: 0.001 seconds
+[Sat Sep 26 14:20:30 2026
+] Client thread finished
+[Sat Sep 26 14:20:58 2026
+] New client connected
+[Sat Sep 26 14:20:58 2026
+] Client thread started
+[Sat Sep 26 14:20:58 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:20:58 2026
+] Cache hit
+[Sat Sep 26 14:20:58 2026
+] Request processing time: 0.001 seconds
+[Sat Sep 26 14:20:58 2026
+] Client thread finished
+[Sat Sep 26 14:20:58 2026
+] New client connected
+[Sat Sep 26 14:20:58 2026
+] Client thread started
+[Sat Sep 26 14:20:58 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:20:58 2026
+] Cache hit
+[Sat Sep 26 14:20:58 2026
+] Request processing time: 0.001 seconds
+[Sat Sep 26 14:20:58 2026
+] Client thread finished
+[Sat Sep 26 14:21:23 2026
+] New client connected
+[Sat Sep 26 14:21:23 2026
+] New client connected
+[Sat Sep 26 14:21:23 2026
+] Client thread started
+[Sat Sep 26 14:21:23 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:21:23 2026
+] Client thread started
+[Sat Sep 26 14:21:23 2026
+] Cache hit
+[Sat Sep 26 14:21:23 2026
+] New client connected
+[Sat Sep 26 14:21:23 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:21:23 2026
+] New client connected
+[Sat Sep 26 14:21:23 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:21:23 2026
+] Client thread finished
+[Sat Sep 26 14:21:23 2026
+] New client connected
+[Sat Sep 26 14:21:23 2026
+] Client thread started
+[Sat Sep 26 14:21:23 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:21:23 2026
+] Cache hit
+[Sat Sep 26 14:21:23 2026
+] Client thread started
+[Sat Sep 26 14:21:23 2026
+] Client thread started
+[Sat Sep 26 14:21:23 2026
+] Cache hit
+[Sat Sep 26 14:21:23 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:21:23 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:21:23 2026
+] Client thread finished
+[Sat Sep 26 14:21:23 2026
+] Cache hit
+[Sat Sep 26 14:21:23 2026
+] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:21:23 2026
+] Request processing time: 0.004 seconds
+[Sat Sep 26 14:21:23 2026
+] Client thread finished
+[Sat Sep 26 14:21:23 2026
+] Cache hit
+[Sat Sep 26 14:21:23 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:21:23 2026
+] Client thread finished
+[Sat Sep 26 14:21:23 2026
+] Request processing time: 0.002 seconds
+[Sat Sep 26 14:21:23 2026
+] Client thread finished
+[Sat Sep 26 14:24:22 2026] New client connected
+[Sat Sep 26 14:24:22 2026] Client thread started
+[Sat Sep 26 14:24:22 2026] HTTP request received for host: neverssl.com
+[Sat Sep 26 14:24:22 2026] Cache miss
+[Sat Sep 26 14:24:23 2026] Connected to destination server
+[Sat Sep 26 14:24:23 2026] Request forwarded to destination server
+[Sat Sep 26 14:24:24 2026] Response sent back to client
+[Sat Sep 26 14:24:24 2026] Response saved in cache
+[Sat Sep 26 14:24:24 2026] Request processing time: 0.003 seconds
+[Sat Sep 26 14:24:24 2026] Client thread finished
+[Sat Sep 26 14:29:58 2026] New client connected
+[Sat Sep 26 14:29:58 2026] Client thread started
+[Sat Sep 26 14:29:58 2026] HTTP request received for host: example.com
+[Sat Sep 26 14:29:58 2026] ACCESS CONTROL: Request blocked
+[Sat Sep 26 14:29:58 2026] Request processing time: 0.001 seconds
+[Sat Sep 26 14:29:58 2026] Client thread finished
