@@ -5,12 +5,16 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <pthread.h>
+#include <time.h>
 
 #include "cache.h"
 #include "access_control.h"
+#include "logger.h"
 
 #define PROXY_PORT 8888
 #define BUFFER_SIZE 8192
+
 
 int get_host(char *request, char *host)
 {
@@ -82,6 +86,8 @@ void handle_client(int client_socket)
 
     if (bytes_received <= 0)
     {
+        log_error("Failed to receive request from client");
+
         close(client_socket);
         return;
     }
@@ -92,9 +98,14 @@ void handle_client(int client_socket)
     printf("%s\n", buffer);
 
 
+    /*
+     * Get destination host from HTTP request
+     */
     if (!get_host(buffer, host))
     {
         printf("Could not find Host header\n");
+
+        log_error("Could not find Host header");
 
         close(client_socket);
         return;
@@ -102,27 +113,47 @@ void handle_client(int client_socket)
 
     printf("Requested host: %s\n", host);
 
+    log_request(host);
+
+
+    /*
+     * Access control
+     */
     if (is_blocked(host))
-    {
-        const char *blocked_message =
-            "HTTP/1.1 403 Forbidden\r\n"
-            "Content-Type: text/html\r\n"
-            "Content-Length: 45\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            "<html><body>Access Denied</body></html>";
+{
+    printf("ACCESS CONTROL: Request blocked\n");
 
-        send_all(client_socket,
-                 blocked_message,
-                 strlen(blocked_message));
+    const char *blocked_message =
+        "<html><body>Access Denied</body></html>";
 
-        printf("ACCESS CONTROL: Request blocked\n");
+    int blocked_length = (int)strlen(blocked_message);
 
-        close(client_socket);
-        return;
-    }
+    char blocked_response[512];
 
+    snprintf(blocked_response,
+             sizeof(blocked_response),
+             "HTTP/1.1 403 Forbidden\r\n"
+             "Content-Type: text/html\r\n"
+             "Content-Length: %d\r\n"
+             "Connection: close\r\n"
+             "\r\n"
+             "%s",
+             blocked_length,
+             blocked_message);
 
+    send_all(client_socket,
+             blocked_response,
+             strlen(blocked_response));
+
+    log_info("ACCESS CONTROL: Request blocked");
+
+    close(client_socket);
+    return;
+}
+
+    /*
+     * Create cache key
+     */
     char cache_key[BUFFER_SIZE];
 
     strncpy(cache_key,
@@ -132,12 +163,16 @@ void handle_client(int client_socket)
     cache_key[sizeof(cache_key) - 1] = '\0';
 
 
-
+    /*
+     * Check cache
+     */
     char *cached_response = malloc(MAX_CACHE_SIZE);
 
     if (cached_response == NULL)
     {
         printf("Could not allocate cache buffer\n");
+
+        log_error("Could not allocate cache buffer");
 
         close(client_socket);
         return;
@@ -153,9 +188,14 @@ void handle_client(int client_socket)
         printf("CACHE HIT\n");
         printf("Sending cached response to client\n");
 
-        send_all(client_socket,
-                 cached_response,
-                 cached_size);
+        log_info("Cache hit");
+
+        if (!send_all(client_socket,
+                      cached_response,
+                      cached_size))
+        {
+            log_error("Failed to send cached response");
+        }
 
         free(cached_response);
 
@@ -165,38 +205,55 @@ void handle_client(int client_socket)
 
     printf("CACHE MISS\n");
 
+    log_info("Cache miss");
+
     free(cached_response);
 
+
+    /*
+     * Create socket for destination server
+     */
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
 
     if (server_socket < 0)
     {
         perror("Destination socket creation failed");
 
+        log_error("Destination socket creation failed");
+
         close(client_socket);
         return;
     }
 
 
-   
+    /*
+     * Find destination server
+     */
     struct hostent *server = gethostbyname(host);
 
     if (server == NULL)
     {
         printf("Could not find server: %s\n", host);
 
+        log_error("Could not find destination server");
+
         close(server_socket);
         close(client_socket);
 
         return;
     }
+    printf("Destination server found: %s\n", server->h_name);
 
 
+    /*
+     * Prepare destination server address
+     */
     struct sockaddr_in server_address;
 
     memset(&server_address, 0, sizeof(server_address));
 
     server_address.sin_family = AF_INET;
+
     server_address.sin_port = htons(80);
 
     memcpy(&server_address.sin_addr,
@@ -204,11 +261,16 @@ void handle_client(int client_socket)
            server->h_length);
 
 
+    /*
+     * Connect to destination server
+     */
     if (connect(server_socket,
                 (struct sockaddr *)&server_address,
                 sizeof(server_address)) < 0)
     {
         perror("Connection to destination server failed");
+
+        log_error("Connection to destination server failed");
 
         close(server_socket);
         close(client_socket);
@@ -218,24 +280,37 @@ void handle_client(int client_socket)
 
     printf("Connected to %s\n", host);
 
+    log_info("Connected to destination server");
 
 
+    /*
+     * Forward request to destination server
+     */
     if (!send_all(server_socket,
                   buffer,
                   bytes_received))
     {
         perror("Failed to send request");
 
+        log_error("Failed to send request to destination server");
+
         close(server_socket);
         close(client_socket);
 
         return;
     }
+    shutdown(server_socket, SHUT_WR);
 
     printf("Request forwarded to server\n");
 
+    log_info("Request forwarded to destination server");
 
+
+    /*
+     * Receive complete response
+     */
     int response_capacity = BUFFER_SIZE;
+
     int total_response_size = 0;
 
     char *complete_response =
@@ -244,6 +319,8 @@ void handle_client(int client_socket)
     if (complete_response == NULL)
     {
         printf("Memory allocation failed\n");
+
+        log_error("Memory allocation failed for response");
 
         close(server_socket);
         close(client_socket);
@@ -263,7 +340,9 @@ void handle_client(int client_socket)
             break;
 
 
-        /* Increase memory if necessary */
+        /*
+         * Increase memory if necessary
+         */
         while (total_response_size + response_size >
                response_capacity)
         {
@@ -276,6 +355,8 @@ void handle_client(int client_socket)
             if (new_response == NULL)
             {
                 printf("Memory allocation failed\n");
+
+                log_error("Memory reallocation failed");
 
                 free(complete_response);
 
@@ -301,20 +382,28 @@ void handle_client(int client_socket)
            total_response_size);
 
 
-
+    /*
+     * Send response back to client
+     */
     if (!send_all(client_socket,
                   complete_response,
                   total_response_size))
     {
         printf("Failed to send complete response\n");
+
+        log_error("Failed to send complete response");
     }
     else
     {
         printf("Response sent back to client\n");
+
+        log_info("Response sent back to client");
     }
 
 
-
+    /*
+     * Save response in cache
+     */
     if (total_response_size <= MAX_CACHE_SIZE)
     {
         save_cache(cache_key,
@@ -322,46 +411,120 @@ void handle_client(int client_socket)
                    total_response_size);
 
         printf("Response saved in cache\n");
+
+        log_info("Response saved in cache");
     }
     else
     {
         printf("Response too large. Not cached.\n");
+
+        log_info("Response too large, not cached");
     }
 
 
     free(complete_response);
-
 
     close(server_socket);
     close(client_socket);
 }
 
 
+/*
+ * Thread function
+ *
+ * Each client gets its own thread.
+ */
+void *client_thread(void *arg)
+{
+    int client_socket;
+
+    clock_t start_time;
+    clock_t end_time;
+
+    double time_taken;
+
+
+    /*
+     * Get client socket from argument
+     */
+    client_socket = *(int *)arg;
+
+    free(arg);
+
+
+    /*
+     * Start performance measurement
+     */
+    start_time = clock();
+
+    printf("Client thread started\n");
+
+    log_info("Client thread started");
+
+
+    /*
+     * Handle the client
+     */
+    handle_client(client_socket);
+
+
+    /*
+     * End performance measurement
+     */
+    end_time = clock();
+
+    time_taken =
+        (double)(end_time - start_time)
+        / CLOCKS_PER_SEC;
+
+
+    printf("Request processing time: %.3f seconds\n",
+           time_taken);
+
+    log_response_time(time_taken);
+
+    log_info("Client thread finished");
+
+
+    return NULL;
+}
+
+
 int main()
 {
     int proxy_socket;
+
     int client_socket;
 
     struct sockaddr_in proxy_address;
+
     struct sockaddr_in client_address;
 
     socklen_t client_length =
         sizeof(client_address);
 
 
-
+    /*
+     * Create proxy socket
+     */
     proxy_socket =
         socket(AF_INET, SOCK_STREAM, 0);
 
     if (proxy_socket < 0)
     {
         perror("Socket creation failed");
+
+        log_error("Proxy socket creation failed");
+
         return 1;
     }
 
     printf("Proxy socket created successfully\n");
 
 
+    /*
+     * Allow reuse of proxy port
+     */
     int option = 1;
 
     setsockopt(proxy_socket,
@@ -371,12 +534,15 @@ int main()
                sizeof(option));
 
 
-
+    /*
+     * Prepare proxy address
+     */
     memset(&proxy_address,
            0,
            sizeof(proxy_address));
 
-    proxy_address.sin_family = AF_INET;
+    proxy_address.sin_family =
+        AF_INET;
 
     proxy_address.sin_addr.s_addr =
         INADDR_ANY;
@@ -385,13 +551,19 @@ int main()
         htons(PROXY_PORT);
 
 
+    /*
+     * Bind proxy socket
+     */
     if (bind(proxy_socket,
              (struct sockaddr *)&proxy_address,
              sizeof(proxy_address)) < 0)
     {
         perror("Bind failed");
 
+        log_error("Proxy bind failed");
+
         close(proxy_socket);
+
         return 1;
     }
 
@@ -399,40 +571,108 @@ int main()
            PROXY_PORT);
 
 
-
+    /*
+     * Start listening
+     */
     if (listen(proxy_socket, 5) < 0)
     {
         perror("Listen failed");
 
+        log_error("Proxy listen failed");
+
         close(proxy_socket);
+
         return 1;
     }
 
     printf("Proxy server is listening...\n");
+
     printf("Waiting for HTTP clients...\n");
 
 
-
+    /*
+     * Accept clients continuously
+     */
     while (1)
     {
+        pthread_t thread_id;
+
+        int *client_socket_ptr;
+
+
         client_length =
             sizeof(client_address);
+
 
         client_socket =
             accept(proxy_socket,
                    (struct sockaddr *)&client_address,
                    &client_length);
 
+
         if (client_socket < 0)
         {
             perror("Accept failed");
+
+            log_error("Accept failed");
+
             continue;
         }
 
+
         printf("\nClient connected!\n");
 
+        log_info("New client connected");
 
-        handle_client(client_socket);
+
+        /*
+         * Allocate memory for client socket
+         */
+        client_socket_ptr =
+            malloc(sizeof(int));
+
+
+        if (client_socket_ptr == NULL)
+        {
+            printf("Memory allocation failed\n");
+
+            log_error("Memory allocation failed for client socket");
+
+            close(client_socket);
+
+            continue;
+        }
+
+
+        *client_socket_ptr =
+            client_socket;
+
+
+        /*
+         * Create a new thread
+         */
+        if (pthread_create(&thread_id,
+                           NULL,
+                           client_thread,
+                           client_socket_ptr) != 0)
+        {
+            printf("Could not create thread\n");
+
+            log_error("Could not create client thread");
+
+            close(client_socket);
+
+            free(client_socket_ptr);
+
+            continue;
+        }
+
+
+        /*
+         * Detach thread so that it
+         * automatically cleans up
+         */
+        pthread_detach(thread_id);
     }
 
 
