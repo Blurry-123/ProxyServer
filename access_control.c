@@ -29,3 +29,4 @@ int is_blocked(const char *host)
 
     return 0;
 }
+
