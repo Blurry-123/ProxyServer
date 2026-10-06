@@ -6,7 +6,6 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <pthread.h>
-#include <time.h>
 
 #include "cache.h"
 #include "access_control.h"
@@ -57,603 +56,940 @@ int send_all(int socket_fd, const char *data, int size)
 {
     int total_sent = 0;
 
-    while (total_sent < size)
+    while (total_sent < length)
     {
         int sent = send(socket_fd,
                         data + total_sent,
-                        size - total_sent,
+                        length - total_sent,
                         0);
 
         if (sent <= 0)
-            return 0;
+        {
+            return -1;
+        }
 
         total_sent += sent;
     }
 
-    return 1;
+    return 0;
 }
 
-
-void handle_client(int client_socket)
+static void send_error_response(int client_socket,
+                                int status_code,
+                                const char *status_text,
+                                const char *message)
 {
-    char buffer[BUFFER_SIZE];
-    char host[256];
+    char response[1024];
+    int message_length;
+    int response_length;
 
-    int bytes_received = recv(client_socket,
-                              buffer,
-                              BUFFER_SIZE - 1,
-                              0);
+    message_length = (int)strlen(message);
 
-    if (bytes_received <= 0)
+    response_length = snprintf(
+        response,
+        sizeof(response),
+        "HTTP/1.1 %d %s\r\n"
+        "Content-Type: text/plain\r\n"
+        "Content-Length: %d\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+        "%s",
+        status_code,
+        status_text,
+        message_length,
+        message
+    );
+
+    if (response_length > 0)
     {
-        log_error("Failed to receive request from client");
+        send_all(client_socket,
+                 response,
+                 response_length);
+    }
+}
 
-        close(client_socket);
-        return;
+static int get_header_value(const char *request,
+                            const char *header_name,
+                            char *value,
+                            int value_size)
+{
+    const char *line;
+    size_t header_length;
+
+    if (request == NULL ||
+        header_name == NULL ||
+        value == NULL ||
+        value_size <= 0)
+    {
+        return -1;
+    }
+
+    header_length = strlen(header_name);
+    line = request;
+
+    while (*line != '\0')
+    {
+        const char *line_end;
+        const char *colon;
+
+        line_end = strstr(line, "\r\n");
+
+        if (line_end == NULL)
+        {
+            break;
+        }
+
+        if (line_end == line)
+        {
+            break;
+        }
+
+        colon = strchr(line, ':');
+
+        if (colon != NULL &&
+            (size_t)(colon - line) == header_length &&
+            strncasecmp(line,
+                        header_name,
+                        header_length) == 0)
+        {
+            const char *start;
+            const char *end;
+            int length;
+
+            start = colon + 1;
+
+            while (start < line_end &&
+                   (*start == ' ' || *start == '\t'))
+            {
+                start++;
+            }
+
+            end = line_end;
+
+            while (end > start &&
+                   (end[-1] == ' ' || end[-1] == '\t'))
+            {
+                end--;
+            }
+
+            length = (int)(end - start);
+
+            if (length >= value_size)
+            {
+                length = value_size - 1;
+            }
+
+            memcpy(value, start, length);
+            value[length] = '\0';
+
+            return 0;
+        }
+
+        line = line_end + 2;
+    }
+
+    return -1;
+}
+
+static int get_host(const char *request,
+                    char *host,
+                    int host_size)
+{
+    char host_value[512];
+    char *colon;
+
+    if (get_header_value(request,
+                         "Host",
+                         host_value,
+                         sizeof(host_value)) != 0)
+    {
+        return -1;
+    }
+
+    colon = strchr(host_value, ':');
+
+    if (colon != NULL)
+    {
+        *colon = '\0';
+    }
+
+    if (host_value[0] == '\0')
+    {
+        return -1;
+    }
+
+    strncpy(host,
+            host_value,
+            host_size - 1);
+
+    host[host_size - 1] = '\0';
+
+    return 0;
+}
+
+static int request_has_connection_header(const char *request)
+{
+    const char *line;
+
+    line = request;
+
+    while (*line != '\0')
+    {
+        const char *line_end;
+        const char *colon;
+
+        line_end = strstr(line, "\r\n");
+
+        if (line_end == NULL || line_end == line)
+        {
+            break;
+        }
+
+        colon = strchr(line, ':');
+
+        if (colon != NULL &&
+            (size_t)(colon - line) == strlen("Connection") &&
+            strncasecmp(line,
+                        "Connection",
+                        strlen("Connection")) == 0)
+        {
+            return 1;
+        }
+
+        line = line_end + 2;
+    }
+
+    return 0;
+}
+
+static int build_forward_request(const char *request,
+                                 char *output,
+                                 int output_size)
+{
+    const char *header_end;
+    int header_length;
+    int new_length;
+
+    if (request == NULL || output == NULL)
+    {
+        return -1;
+    }
+
+    /*
+     * If the client already supplied a Connection header,
+     * forward the request unchanged.
+     */
+    if (request_has_connection_header(request))
+    {
+        int request_length = (int)strlen(request);
+
+        if (request_length >= output_size)
+        {
+            return -1;
+        }
+
+        memcpy(output, request, request_length + 1);
+
+        return request_length;
+    }
+
+    header_end = strstr(request, "\r\n\r\n");
+
+    if (header_end == NULL)
+    {
+        return -1;
+    }
+
+    /*
+     * header_end points to the CRLF that begins the
+     * final "\r\n\r\n".
+     *
+     * We replace:
+     *
+     *     \r\n\r\n
+     *
+     * with:
+     *
+     *     \r\nConnection: close\r\n\r\n
+     */
+    header_length = (int)(header_end - request);
+
+    new_length = header_length
+                 + (int)strlen("\r\nConnection: close\r\n\r\n");
+
+    if (new_length >= output_size)
+    {
+        return -1;
+    }
+
+    memcpy(output,
+           request,
+           header_length);
+
+    memcpy(output + header_length,
+           "\r\nConnection: close\r\n\r\n",
+           strlen("\r\nConnection: close\r\n\r\n"));
+
+    output[new_length] = '\0';
+
+    return new_length;
+}
+
+static void *handle_client(void *arg)
+{
+    int client_socket;
+    char buffer[BUFFER_SIZE];
+    char forward_request[BUFFER_SIZE];
+    char host[512];
+
+    int bytes_received;
+    int request_length;
+
+    char *cache_response;
+    int cache_response_size;
+
+    int server_socket;
+    struct hostent *server_host;
+    struct sockaddr_in server_address;
+
+    char *full_response;
+    int total_response_size;
+    int response_capacity;
+
+    struct timespec start_time;
+    struct timespec end_time;
+
+    double elapsed_time;
+
+    client_socket = *((int *)arg);
+    free(arg);
+
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
+
+    /*
+     * Set client receive timeout.
+     */
+    {
+        struct timeval timeout;
+
+        timeout.tv_sec = CLIENT_TIMEOUT;
+        timeout.tv_usec = 0;
+
+        setsockopt(client_socket,
+                   SOL_SOCKET,
+                   SO_RCVTIMEO,
+                   &timeout,
+                   sizeof(timeout));
+    }
+
+    /*
+     * Read the complete HTTP request headers.
+     */
+    bytes_received = 0;
+
+    while (bytes_received < BUFFER_SIZE - 1)
+    {
+        int received;
+
+        received = recv(client_socket,
+                        buffer + bytes_received,
+                        BUFFER_SIZE - 1 - bytes_received,
+                        0);
+
+        if (received > 0)
+        {
+            bytes_received += received;
+            buffer[bytes_received] = '\0';
+
+            if (strstr(buffer, "\r\n\r\n") != NULL)
+            {
+                break;
+            }
+        }
+        else if (received == 0)
+        {
+            break;
+        }
+        else
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                log_error("Client request timed out");
+            }
+            else
+            {
+                log_error("Error receiving client request");
+            }
+
+            close(client_socket);
+            return NULL;
+        }
     }
 
     buffer[bytes_received] = '\0';
 
-    printf("\n----- HTTP REQUEST -----\n");
-    printf("%s\n", buffer);
-
-
     /*
-     * Get destination host from HTTP request
+     * Make sure we actually received a complete HTTP header.
      */
-    if (!get_host(buffer, host))
+    if (bytes_received == 0 ||
+        strstr(buffer, "\r\n\r\n") == NULL)
     {
-        printf("Could not find Host header\n");
+        log_error("Malformed or incomplete HTTP request");
 
-        log_error("Could not find Host header");
+        send_error_response(client_socket,
+                            400,
+                            "Bad Request",
+                            "Bad Request");
 
         close(client_socket);
-        return;
+        return NULL;
     }
 
-    printf("Requested host: %s\n", host);
+    /*
+     * Only GET and HEAD are supported.
+     */
+    if (strncmp(buffer, "GET ", 4) != 0 &&
+        strncmp(buffer, "HEAD ", 5) != 0)
+    {
+        log_error("Unsupported HTTP method");
+
+        send_error_response(client_socket,
+                            400,
+                            "Bad Request",
+                            "Only GET and HEAD are supported");
+
+        close(client_socket);
+        return NULL;
+    }
+
+    /*
+     * Get Host header.
+     */
+    if (get_host(buffer,
+                 host,
+                 sizeof(host)) != 0)
+    {
+        log_error("Host header missing");
+
+        send_error_response(client_socket,
+                            400,
+                            "Bad Request",
+                            "Host header required");
+
+        close(client_socket);
+        return NULL;
+    }
 
     log_request(host);
 
+    printf("HTTP request received for host: %s\n", host);
 
     /*
-     * Access control
+     * Access control.
      */
     if (is_blocked(host))
-{
-    printf("ACCESS CONTROL: Request blocked\n");
-
-    const char *blocked_message =
-        "<html><body>Access Denied</body></html>";
-
-    int blocked_length = (int)strlen(blocked_message);
-
-    char blocked_response[512];
-
-    snprintf(blocked_response,
-             sizeof(blocked_response),
-             "HTTP/1.1 403 Forbidden\r\n"
-             "Content-Type: text/html\r\n"
-             "Content-Length: %d\r\n"
-             "Connection: close\r\n"
-             "\r\n"
-             "%s",
-             blocked_length,
-             blocked_message);
-
-    send_all(client_socket,
-             blocked_response,
-             strlen(blocked_response));
-
-    log_info("ACCESS CONTROL: Request blocked");
-
-    close(client_socket);
-    return;
-}
-
-    /*
-     * Create cache key
-     */
-    char cache_key[BUFFER_SIZE];
-
-    strncpy(cache_key,
-            buffer,
-            sizeof(cache_key) - 1);
-
-    cache_key[sizeof(cache_key) - 1] = '\0';
-
-
-    /*
-     * Check cache
-     */
-    char *cached_response = malloc(MAX_CACHE_SIZE);
-
-    if (cached_response == NULL)
     {
-        printf("Could not allocate cache buffer\n");
+        log_info("Request blocked by access control");
 
-        log_error("Could not allocate cache buffer");
+        send_error_response(client_socket,
+                            403,
+                            "Forbidden",
+                            "Access denied");
 
         close(client_socket);
-        return;
+        return NULL;
     }
 
-    int cached_size = 0;
+    /*
+     * Use the complete request as the cache key.
+     */
+    request_length = bytes_received;
 
-
-    if (check_cache(cache_key,
-                    cached_response,
-                    &cached_size))
+    if (request_length >= 512)
     {
-        printf("CACHE HIT\n");
-        printf("Sending cached response to client\n");
+        /*
+         * The cache key has a fixed maximum size.
+         * We simply skip caching for oversized requests.
+         */
+        cache_response = NULL;
+        cache_response_size = 0;
+    }
+    else
+    {
+        cache_response = malloc(MAX_CACHE_SIZE);
 
-        log_info("Cache hit");
-
-        if (!send_all(client_socket,
-                      cached_response,
-                      cached_size))
+        if (cache_response == NULL)
         {
-            log_error("Failed to send cached response");
+            log_error("Cache memory allocation failed");
+            cache_response_size = 0;
         }
+        else
+        {
+            cache_response_size = 0;
 
-        free(cached_response);
+            if (check_cache(buffer,
+                            cache_response,
+                            &cache_response_size))
+            {
+                printf("Sending cached response to client\n");
 
-        close(client_socket);
-        return;
+                send_all(client_socket,
+                         cache_response,
+                         cache_response_size);
+
+                free(cache_response);
+
+                close(client_socket);
+
+                clock_gettime(CLOCK_MONOTONIC, &end_time);
+
+                elapsed_time =
+                    (end_time.tv_sec - start_time.tv_sec) +
+                    (end_time.tv_nsec - start_time.tv_nsec) / 1000000000.0;
+
+                log_response_time(elapsed_time);
+
+                return NULL;
+            }
+        }
     }
 
-    printf("CACHE MISS\n");
-
-    log_info("Cache miss");
-
-    free(cached_response);
-
+    if (cache_response != NULL)
+    {
+        free(cache_response);
+        cache_response = NULL;
+    }
 
     /*
-     * Create socket for destination server
+     * Resolve destination host.
      */
-    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    server_host = gethostbyname(host);
+
+    if (server_host == NULL)
+    {
+        log_error("Could not resolve destination host");
+
+        send_error_response(client_socket,
+                            502,
+                            "Bad Gateway",
+                            "Could not resolve destination host");
+
+        close(client_socket);
+        return NULL;
+    }
+
+    /*
+     * Create destination socket.
+     */
+    server_socket = socket(AF_INET,
+                           SOCK_STREAM,
+                           0);
 
     if (server_socket < 0)
     {
-        perror("Destination socket creation failed");
+        log_error("Could not create destination socket");
 
-        log_error("Destination socket creation failed");
+        send_error_response(client_socket,
+                            502,
+                            "Bad Gateway",
+                            "Could not create destination socket");
 
         close(client_socket);
-        return;
+        return NULL;
     }
 
-
     /*
-     * Find destination server
+     * Set destination timeout.
      */
-    struct hostent *server = gethostbyname(host);
-
-    if (server == NULL)
     {
-        printf("Could not find server: %s\n", host);
+        struct timeval timeout;
 
-        log_error("Could not find destination server");
+        timeout.tv_sec = SERVER_TIMEOUT;
+        timeout.tv_usec = 0;
 
-        close(server_socket);
-        close(client_socket);
+        setsockopt(server_socket,
+                   SOL_SOCKET,
+                   SO_RCVTIMEO,
+                   &timeout,
+                   sizeof(timeout));
 
-        return;
+        setsockopt(server_socket,
+                   SOL_SOCKET,
+                   SO_SNDTIMEO,
+                   &timeout,
+                   sizeof(timeout));
     }
-    printf("Destination server found: %s\n", server->h_name);
 
-
-    /*
-     * Prepare destination server address
-     */
-    struct sockaddr_in server_address;
-
-    memset(&server_address, 0, sizeof(server_address));
+    memset(&server_address,
+           0,
+           sizeof(server_address));
 
     server_address.sin_family = AF_INET;
-
     server_address.sin_port = htons(80);
 
     memcpy(&server_address.sin_addr,
-           server->h_addr,
-           server->h_length);
-
+           server_host->h_addr_list[0],
+           server_host->h_length);
 
     /*
-     * Connect to destination server
+     * Connect to destination.
      */
     if (connect(server_socket,
                 (struct sockaddr *)&server_address,
                 sizeof(server_address)) < 0)
     {
-        perror("Connection to destination server failed");
+        log_error("Could not connect to destination");
 
-        log_error("Connection to destination server failed");
+        send_error_response(client_socket,
+                            502,
+                            "Bad Gateway",
+                            "Could not connect to destination");
 
         close(server_socket);
         close(client_socket);
 
-        return;
+        return NULL;
     }
 
-    printf("Connected to %s\n", host);
-
-    log_info("Connected to destination server");
-
+    printf("Connected to destination: %s\n", host);
 
     /*
-     * Forward request to destination server
+     * Build a forward request with Connection: close.
      */
-    if (!send_all(server_socket,
-                  buffer,
-                  bytes_received))
     {
-        perror("Failed to send request");
+        int forward_length;
 
-        log_error("Failed to send request to destination server");
+        forward_length = build_forward_request(
+            buffer,
+            forward_request,
+            sizeof(forward_request));
 
-        close(server_socket);
-        close(client_socket);
+        if (forward_length < 0)
+        {
+            log_error("Could not build forward request");
 
-        return;
+            send_error_response(client_socket,
+                                400,
+                                "Bad Request",
+                                "Request too large or malformed");
+
+            close(server_socket);
+            close(client_socket);
+
+            return NULL;
+        }
+
+        /*
+         * Forward request to destination.
+         */
+        if (send_all(server_socket,
+                     forward_request,
+                     forward_length) < 0)
+        {
+            log_error("Failed to forward request");
+
+            send_error_response(client_socket,
+                                502,
+                                "Bad Gateway",
+                                "Failed to forward request");
+
+            close(server_socket);
+            close(client_socket);
+
+            return NULL;
+        }
     }
+
+    printf("Request forwarded to destination\n");
+
+    /*
+     * Tell destination that no more request data will be sent.
+     */
     shutdown(server_socket, SHUT_WR);
 
-    printf("Request forwarded to server\n");
-
-    log_info("Request forwarded to destination server");
-
-
     /*
-     * Receive complete response
+     * Receive destination response.
      */
-    int response_capacity = BUFFER_SIZE;
+    response_capacity = BUFFER_SIZE;
 
-    int total_response_size = 0;
+    full_response = malloc(response_capacity);
 
-    char *complete_response =
-        malloc(response_capacity);
-
-    if (complete_response == NULL)
+    if (full_response == NULL)
     {
-        printf("Memory allocation failed\n");
-
-        log_error("Memory allocation failed for response");
+        log_error("Response memory allocation failed");
 
         close(server_socket);
         close(client_socket);
 
-        return;
+        return NULL;
     }
 
+    total_response_size = 0;
 
     while (1)
     {
-        int response_size = recv(server_socket,
-                                 buffer,
-                                 BUFFER_SIZE,
-                                 0);
+        char response_buffer[BUFFER_SIZE];
+        int received;
 
-        if (response_size <= 0)
-            break;
+        received = recv(server_socket,
+                        response_buffer,
+                        sizeof(response_buffer),
+                        0);
 
-
-        /*
-         * Increase memory if necessary
-         */
-        while (total_response_size + response_size >
-               response_capacity)
+        if (received > 0)
         {
-            response_capacity *= 2;
-
-            char *new_response =
-                realloc(complete_response,
-                        response_capacity);
-
-            if (new_response == NULL)
+            /*
+             * Expand response buffer if necessary.
+             */
+            if (total_response_size + received > response_capacity)
             {
-                printf("Memory allocation failed\n");
+                int new_capacity;
+                char *new_response;
 
-                log_error("Memory reallocation failed");
+                new_capacity = response_capacity * 2;
 
-                free(complete_response);
+                while (new_capacity <
+                       total_response_size + received)
+                {
+                    new_capacity *= 2;
+                }
 
-                close(server_socket);
-                close(client_socket);
+                /*
+                 * Never cache responses larger than MAX_CACHE_SIZE,
+                 * but we still allow forwarding larger responses.
+                 */
+                new_response = realloc(full_response,
+                                       new_capacity);
 
-                return;
+                if (new_response == NULL)
+                {
+                    log_error("Response memory reallocation failed");
+
+                    free(full_response);
+                    close(server_socket);
+                    close(client_socket);
+
+                    return NULL;
+                }
+
+                full_response = new_response;
+                response_capacity = new_capacity;
             }
 
-            complete_response = new_response;
+            memcpy(full_response + total_response_size,
+                   response_buffer,
+                   received);
+
+            total_response_size += received;
         }
+        else if (received == 0)
+        {
+            /*
+             * Destination closed connection normally.
+             */
+            break;
+        }
+        else
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                log_error("Destination response timed out");
 
+                if (total_response_size == 0)
+                {
+                    send_error_response(client_socket,
+                                        504,
+                                        "Gateway Timeout",
+                                        "Destination response timed out");
 
-        memcpy(complete_response + total_response_size,
-               buffer,
-               response_size);
+                    free(full_response);
+                    close(server_socket);
+                    close(client_socket);
 
-        total_response_size += response_size;
+                    return NULL;
+                }
+
+                break;
+            }
+
+            log_error("Error receiving destination response");
+            break;
+        }
     }
-
-
-    printf("Received %d bytes from server\n",
-           total_response_size);
-
-
-    /*
-     * Send response back to client
-     */
-    if (!send_all(client_socket,
-                  complete_response,
-                  total_response_size))
-    {
-        printf("Failed to send complete response\n");
-
-        log_error("Failed to send complete response");
-    }
-    else
-    {
-        printf("Response sent back to client\n");
-
-        log_info("Response sent back to client");
-    }
-
-
-    /*
-     * Save response in cache
-     */
-    if (total_response_size <= MAX_CACHE_SIZE)
-    {
-        save_cache(cache_key,
-                   complete_response,
-                   total_response_size);
-
-        printf("Response saved in cache\n");
-
-        log_info("Response saved in cache");
-    }
-    else
-    {
-        printf("Response too large. Not cached.\n");
-
-        log_info("Response too large, not cached");
-    }
-
-
-    free(complete_response);
 
     close(server_socket);
+
+    printf("Response received: %d bytes\n",
+           total_response_size);
+
+    /*
+     * Send response to client.
+     */
+    if (total_response_size > 0)
+    {
+        if (send_all(client_socket,
+                     full_response,
+                     total_response_size) < 0)
+        {
+            log_error("Failed to send response to client");
+        }
+        else
+        {
+            printf("Response sent to client\n");
+        }
+    }
+    else
+    {
+        log_error("Destination returned empty response");
+
+        send_error_response(client_socket,
+                            502,
+                            "Bad Gateway",
+                            "Destination returned empty response");
+    }
+
+    /*
+     * Cache response if it is within the cache size limit.
+     */
+    if (total_response_size > 0 &&
+        total_response_size <= MAX_CACHE_SIZE)
+    {
+        save_cache(buffer,
+                   full_response,
+                   total_response_size);
+    }
+
+    free(full_response);
+
     close(client_socket);
-}
 
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
 
-/*
- * Thread function
- *
- * Each client gets its own thread.
- */
-void *client_thread(void *arg)
-{
-    int client_socket;
-
-    clock_t start_time;
-    clock_t end_time;
-
-    double time_taken;
-
-
-    /*
-     * Get client socket from argument
-     */
-    client_socket = *(int *)arg;
-
-    free(arg);
-
-
-    /*
-     * Start performance measurement
-     */
-    start_time = clock();
-
-    printf("Client thread started\n");
-
-    log_info("Client thread started");
-
-
-    /*
-     * Handle the client
-     */
-    handle_client(client_socket);
-
-
-    /*
-     * End performance measurement
-     */
-    end_time = clock();
-
-    time_taken =
-        (double)(end_time - start_time)
-        / CLOCKS_PER_SEC;
-
+    elapsed_time =
+        (end_time.tv_sec - start_time.tv_sec) +
+        (end_time.tv_nsec - start_time.tv_nsec) / 1000000000.0;
 
     printf("Request processing time: %.3f seconds\n",
-           time_taken);
+           elapsed_time);
 
-    log_response_time(time_taken);
-
-    log_info("Client thread finished");
-
+    log_response_time(elapsed_time);
 
     return NULL;
 }
 
-
-int main()
+int main(void)
 {
-    int proxy_socket;
-
+    int server_socket;
     int client_socket;
 
-    struct sockaddr_in proxy_address;
-
+    struct sockaddr_in server_address;
     struct sockaddr_in client_address;
 
-    socklen_t client_length =
-        sizeof(client_address);
+    socklen_t client_length;
 
+    int reuse_address;
+
+    printf("Starting proxy server...\n");
 
     /*
-     * Create proxy socket
+     * Prevent crashes when sending to a disconnected client.
      */
-    proxy_socket =
-        socket(AF_INET, SOCK_STREAM, 0);
+    signal(SIGPIPE, SIG_IGN);
 
-    if (proxy_socket < 0)
+    /*
+     * Create listening socket.
+     */
+    server_socket = socket(AF_INET,
+                           SOCK_STREAM,
+                           0);
+
+    if (server_socket < 0)
     {
-        perror("Socket creation failed");
-
-        log_error("Proxy socket creation failed");
-
+        perror("socket");
         return 1;
     }
 
-    printf("Proxy socket created successfully\n");
-
-
     /*
-     * Allow reuse of proxy port
+     * Allow quick reuse of the port.
      */
-    int option = 1;
+    reuse_address = 1;
 
-    setsockopt(proxy_socket,
+    setsockopt(server_socket,
                SOL_SOCKET,
                SO_REUSEADDR,
-               &option,
-               sizeof(option));
+               &reuse_address,
+               sizeof(reuse_address));
 
-
-    /*
-     * Prepare proxy address
-     */
-    memset(&proxy_address,
+    memset(&server_address,
            0,
-           sizeof(proxy_address));
+           sizeof(server_address));
 
-    proxy_address.sin_family =
-        AF_INET;
-
-    proxy_address.sin_addr.s_addr =
-        INADDR_ANY;
-
-    proxy_address.sin_port =
-        htons(PROXY_PORT);
-
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = INADDR_ANY;
+    server_address.sin_port = htons(PROXY_PORT);
 
     /*
-     * Bind proxy socket
+     * Bind socket.
      */
-    if (bind(proxy_socket,
-             (struct sockaddr *)&proxy_address,
-             sizeof(proxy_address)) < 0)
+    if (bind(server_socket,
+             (struct sockaddr *)&server_address,
+             sizeof(server_address)) < 0)
     {
-        perror("Bind failed");
-
-        log_error("Proxy bind failed");
-
-        close(proxy_socket);
-
+        perror("bind");
+        close(server_socket);
         return 1;
     }
 
-    printf("Proxy bound to port %d\n",
+    /*
+     * Start listening.
+     */
+    if (listen(server_socket, 20) < 0)
+    {
+        perror("listen");
+        close(server_socket);
+        return 1;
+    }
+
+    printf("Proxy server started on port %d\n",
            PROXY_PORT);
 
-
     /*
-     * Start listening
-     */
-    if (listen(proxy_socket, 5) < 0)
-    {
-        perror("Listen failed");
-
-        log_error("Proxy listen failed");
-
-        close(proxy_socket);
-
-        return 1;
-    }
-
-    printf("Proxy server is listening...\n");
-
-    printf("Waiting for HTTP clients...\n");
-
-
-    /*
-     * Accept clients continuously
+     * Accept clients continuously.
      */
     while (1)
     {
-        pthread_t thread_id;
-
+        pthread_t thread;
         int *client_socket_ptr;
 
+        client_length = sizeof(client_address);
 
-        client_length =
-            sizeof(client_address);
-
-
-        client_socket =
-            accept(proxy_socket,
-                   (struct sockaddr *)&client_address,
-                   &client_length);
-
+        client_socket = accept(
+            server_socket,
+            (struct sockaddr *)&client_address,
+            &client_length);
 
         if (client_socket < 0)
         {
-            perror("Accept failed");
-
-            log_error("Accept failed");
-
+            perror("accept");
             continue;
         }
 
-
-        printf("\nClient connected!\n");
-
-        log_info("New client connected");
-
-
-        /*
-         * Allocate memory for client socket
-         */
-        client_socket_ptr =
-            malloc(sizeof(int));
-
+        client_socket_ptr = malloc(sizeof(int));
 
         if (client_socket_ptr == NULL)
         {
-            printf("Memory allocation failed\n");
-
-            log_error("Memory allocation failed for client socket");
+            fprintf(stderr,
+                    "Could not allocate client socket memory\n");
 
             close(client_socket);
-
             continue;
         }
 
+        *client_socket_ptr = client_socket;
 
-        *client_socket_ptr =
-            client_socket;
-
-
-        /*
-         * Create a new thread
-         */
-        if (pthread_create(&thread_id,
+        if (pthread_create(&thread,
                            NULL,
-                           client_thread,
+                           handle_client,
                            client_socket_ptr) != 0)
         {
             printf("Could not create thread\n");
@@ -663,6 +999,7 @@ int main()
             close(client_socket);
 
             free(client_socket_ptr);
+            close(client_socket);
 
             continue;
         }
